@@ -12,5 +12,6 @@ Control vehicle to avoid obstacles using webcam
 
 ### Content
 
-capture.py - detects optical flow and sends its average magnitude via socket
-game.py - receives magnitude from socket and uses it to control vehicle
+**capture.py** - detects optical flow and sends its average magnitude via socket
+
+**game.py** - receives magnitude from socket and uses it to control vehicle
