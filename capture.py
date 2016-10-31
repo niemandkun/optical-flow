@@ -78,7 +78,7 @@ while(1):
 
     # Send data over network to our gaming application
     data = b'joystick1\r\n' + struct.pack('>ff', x / 30, y / 30)
-    sock.sendto(data, ('0.0.0.0', 38228))
+    sock.sendto(data, ('127.0.0.1', 38228))
 
     # Paint hint
     img = frame_gray.copy()

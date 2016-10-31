@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
+try:
+    import curses
+    HAS_CURSES = True
+except ImportError:
+    from graphical_renderer import Renderer as GRenderer
+    HAS_CURSES = False
+
 
 import socket
 import struct
-import curses
 import time
 import math
 import random
+import numpy as np
+import cv2
 from threading import Thread
 from itertools import product
 
@@ -26,6 +34,7 @@ def distance(first, second):
 
 
 class Joystick:
+
     def __init__(self, name):
         self.update(0, 0)
         self.name = name
@@ -39,6 +48,7 @@ class Joystick:
 
 
 class Entity:
+
     def __init__(self, game, x, y):
         self.game = game
         self.x = self.y = 0
@@ -59,6 +69,7 @@ class Entity:
 
 
 class Gun(Entity):
+
     def __init__(self, game, parent_entity, freeze_time):
         self.game = game
         self.freeze_time = freeze_time
@@ -77,6 +88,7 @@ class Gun(Entity):
 
 
 class Player(Entity):
+
     def controller_act(self, dx, dy):
         self.x += dx
         self.y += dy
@@ -103,6 +115,7 @@ class Player(Entity):
 
 
 class DisposableEntity(Entity):
+
     def logic_act(self):
         scr_x, scr_y = self.game.render.get_screen_size()
         if self.x >= scr_x - 1 or self.x <= 0 or \
@@ -111,6 +124,7 @@ class DisposableEntity(Entity):
 
 
 class Enemy(DisposableEntity):
+
     def __init__(self, *args):
         super().__init__(*args)
         self.__velocity = ENEMY_SPEED + (random.random() * 0.5 - 0.25)
@@ -130,11 +144,13 @@ class Enemy(DisposableEntity):
 
 
 class Bullet(DisposableEntity):
+
     def logic_act(self):
         super().logic_act()
 
 
 class Game:
+
     def __init__(self, left_controller, right_controller, screen):
         super().__init__()
         self.scores = 0
@@ -150,7 +166,12 @@ class Game:
         self.ticks_count = 0
 
     def create_renderer(self, screen):
-        render = Renderer(screen)
+        if HAS_CURSES:
+            render = Renderer(screen)
+        else:
+            size = 10
+            render = GRenderer(np.zeros([9 * size, 16 * size, 3]))
+
         render.register_entity(Player, render.draw_player)
         render.register_entity(Bullet, render.draw_bullet)
         render.register_entity(Enemy, render.draw_enemy)
@@ -182,13 +203,22 @@ class Game:
             for entity in self.entities:
                 entity.logic_act()
 
+            print(time.time())
             self.render.render_on_screen(self.entities)
             self.ticks_count += 1
-            time.sleep(1 / TARGET_FPS)
+
+            if HAS_CURSES:
+                time.sleep(1 / TARGET_FPS)
+            else:
+                k = cv2.waitKey(100 // TARGET_FPS) & 0xff
+                if k == 27:
+                    break
+
         return self.scores
 
 
 class Renderer:
+
     def __init__(self, screen):
         self.screen = screen
         self.render_method = {}
@@ -238,6 +268,7 @@ class Renderer:
 
 
 class UpdateThread(Thread):
+
     def __init__(self, socket):
         super().__init__()
         self.socket = socket
@@ -267,18 +298,24 @@ updater.register_device(joystick2)
 updater.start()
 
 try:
-    stdscr = curses.initscr()
-    stdscr.border()
-    # stdscr.bkgd('.')
-    curses.curs_set(0)
-    curses.noecho()
+    stdscr = None
+    if HAS_CURSES:
+        stdscr = curses.initscr()
+        stdscr.border()
+        # stdscr.bkgd('.')
+        curses.curs_set(0)
+        curses.noecho()
+
     game = Game(joystick1, joystick2, stdscr)
     scores = game.run()
 except KeyboardInterrupt:
     game.keep_alive = False
 finally:
-    server.close()
-    curses.endwin()
+    if HAS_CURSES:
+        server.close()
+        curses.endwin()
+    else:
+        game.render.destroy()
     updater.keep_alive = False
     updater.join()
 
